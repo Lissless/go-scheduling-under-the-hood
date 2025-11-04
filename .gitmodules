@@ -1,0 +1,4 @@
+[submodule "utils/go-instrumented"]
+	path = utils/go-instrumented
+	url = https://github.com/Lissless/go-instrumented
+	branch = runtime-instrumentation
