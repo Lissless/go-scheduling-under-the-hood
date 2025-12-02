@@ -2,3 +2,7 @@
 	path = utils/go-instrumented
 	url = https://github.com/Lissless/go-instrumented
 	branch = runtime-instrumentation
+[submodule "utils-preempt/go-preempt-instrumented"]
+	path = utils-preempt/go-preempt-instrumented
+	url = https://github.com/Lissless/go-instrumented
+	branch = go-preempt-instrumented
