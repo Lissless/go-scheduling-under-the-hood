@@ -606,7 +606,7 @@ func main() {
 			}
 		case "-pg":
 			if len(os.Args) == 3 {
-				data, err := getFileData(os.Args[2])
+				data, err := getSummaryData(os.Args[2])
 				if err != nil {
 					log.Fatalf("failed reading the input file")
 				}

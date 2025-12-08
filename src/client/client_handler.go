@@ -161,3 +161,97 @@ type Summary struct {
 	Throughput float64 `json:"throughput"` // successful req/s
 	Errors     int     `json:"errors"`
 }
+
+/*
+
+	Copy of important structs and constants from runtime/instrumentation_metrics.go
+
+*/
+
+const WAIT_REASON_NOOP = 66
+const STATUS_NOOP = 66
+
+// type ActionCode int
+
+const (
+	GOROUTINE_CREATION int = iota
+	LOCAL_QUEUE_TAIL
+	GLOBAL_QUEUE_PUSH
+	LOCAL_QUEUE_HEAD
+	GLOBAL_TO_LOCAL
+	LOCAL_QUEUE_POP
+	LOCAL_QUEUE_DRAIN
+	PROCESSOR_WORK_STEAL
+	GOROUTINE_EXECUTION
+	GOROUTINE_READY
+	GOROUTINE_IDLE
+	GOROUTINE_CHANGE_STATUS
+)
+
+var ActionIDStrings = map[int]string{
+	GOROUTINE_CREATION:      "Goroutine Created",
+	LOCAL_QUEUE_TAIL:        "Goroutine Pushed To Tail of Local Queue",
+	GLOBAL_QUEUE_PUSH:       "Goroutine Pushed To Global Queue",
+	LOCAL_QUEUE_HEAD:        "Goroutine Pushed To Head of Local Queue",
+	GLOBAL_TO_LOCAL:         "Goroutine Pushed from Global to Local Queue",
+	LOCAL_QUEUE_POP:         "Goroutine Popped from Local Queue to Run",
+	LOCAL_QUEUE_DRAIN:       "Goroutine Drained and Flushed",
+	PROCESSOR_WORK_STEAL:    "Goroutine Was Stolen From Its Previous Processor",
+	GOROUTINE_EXECUTION:     "Goroutine Was Executed to Perform A Task",
+	GOROUTINE_READY:         "Goroutine set to Ready",
+	GOROUTINE_IDLE:          "Goroutine set to Idle",
+	GOROUTINE_CHANGE_STATUS: "Goroutine changed status",
+}
+
+type gstatus uint32
+
+const (
+	GIDLE gstatus = iota
+	GRUNNABLE
+	GRUNNING
+	GSYSCALL
+	GWAITING
+	GMORIBUND_UNUSED
+	GDEAD
+	GENQUEUE_UNUSED
+	GCOPYSTACK
+	GPREEMPTED
+	GSCAN
+)
+
+var GoroutineStatusStrings = map[gstatus]string{
+	GIDLE:            "_GIdle: Just allocated, not initialized",
+	GRUNNABLE:        "_Grunnable: On a run queue",
+	GRUNNING:         "_Grunning: Running User Code",
+	GSYSCALL:         "_Gsyscall: Running System Call Code",
+	GWAITING:         "_Gwaiting: Blocked in Runtime",
+	GMORIBUND_UNUSED: "__Gmoribund_unused: Illegal",
+	GDEAD:            "_Gdead: Currently Unsused",
+	GENQUEUE_UNUSED:  "_Genqueue_unused: Illegal",
+	GCOPYSTACK:       "_Gcopystack: Stack being Moved",
+	GPREEMPTED:       "_Gpreempted: Stopped itself for preemption routine",
+	GSCAN:            "_Gscan: GC Scanning the stack",
+}
+
+type SchedEvent struct {
+	Timestamp   int64 // timestamp (nanoseconds)
+	ActionID    int
+	GoRoutineID int64 // goroutine ID, ID:0 is the scheduler
+	ProcessorID int32 // processor ID
+}
+
+type ChangeEvent struct {
+	Timestamp   int64 // timestamp (nanoseconds)
+	ActionID    int
+	GoRoutineID int64  // goroutine ID, ID:0 is the scheduler
+	ProcessorID int32  // processor ID
+	OldStatus   uint32 // the status this goroutine moved from, 66 is a no-op (invalid)
+	NewStatus   uint32 // the status this goroutine moved from to, 66 is a no-op (invalid)
+	WaitReason  uint8  // (waitReason) Reason why the gorouine was put to wait if relevant action, 66 is a no-op (invalid)
+}
+
+type GQueueTimestamp struct {
+	Timestamp   int64 // timestamp (nanoseconds)
+	ProcessorID int32 // processor ID, ID: -1 is the scheduler so we can measure the global queue
+	QSize       int32 // number of gorountines the runq holds at this time
+}

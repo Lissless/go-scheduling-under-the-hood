@@ -40,9 +40,9 @@ func main() {
 			instrumentation_export.DumpInstrumentationLogs() // <-- YOUR FUNCTION
 			instrumentation_export.DumpQSizeLogs()
 			instrumentation_export.DumpGStatusLogs()
-			instrumentation_export.DumpInstrumentationLogsToFile("../json_results/instrumentation.json")
-			instrumentation_export.DumpGStatusLogsToFile("../json_results/goroutine_status.json")
-			instrumentation_export.DumpQSizeLogsToFile("../json_results/queue_size.json")
+			instrumentation_export.DumpInstrumentationLogsToFile("../json_results/instrumentation.jsonl")
+			instrumentation_export.DumpGStatusLogsToFile("../json_results/goroutine_status.jsonl")
+			instrumentation_export.DumpQSizeLogsToFile("../json_results/queue_size.jsonl")
 			os.Exit(0)
 		}()
 

@@ -197,7 +197,118 @@ func makeP50LoadLatency(grouped map[string][]Summary, colors []color.Color) {
 
 }
 
-func getFileData(filePath string) ([]Summary, error) {
+/*
+This shows the distribution/ skew of goroutine statup overhead, the diffences
+between being set ot created and set to executed
+*/
+func makeCreationLatencyHistogram(data []SchedEvent) {
+	creation := make(map[int64]int64)
+	firstExec := make(map[int64]int64)
+	for i := 0; i < len(data); i++ {
+		ev := data[i]
+		switch ev.ActionID {
+		case GOROUTINE_CREATION:
+			if _, exists := creation[ev.GoRoutineID]; !exists {
+				creation[ev.GoRoutineID] = ev.Timestamp
+			}
+		case GOROUTINE_EXECUTION:
+			if _, exists := firstExec[ev.GoRoutineID]; !exists {
+				firstExec[ev.GoRoutineID] = ev.Timestamp
+			}
+		}
+	}
+
+	// Compute latencies
+	latencies := []float64{}
+	for gid, c := range creation {
+		if s, ok := firstExec[gid]; ok && s > c {
+			// convert ns --> microseconds
+			latency := float64(s-c) / 1000.0
+			latencies = append(latencies, latency)
+		}
+	}
+
+	p := plot.New()
+	p.Title.Text = "Goroutine Creation Latency (PDF)"
+	p.X.Label.Text = "Latency (µs)"
+	p.Y.Label.Text = "Frequency"
+
+	vals := make(plotter.Values, len(latencies))
+	for i, v := range latencies {
+		vals[i] = v
+	}
+
+	hist, err := plotter.NewHist(vals, 50) // 50 bins
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	hist.Normalize(1) // convert to probability density
+	p.Add(hist)
+
+	if err := p.Save(9*vg.Inch, 5*vg.Inch, "goroutine_creation_latency_hist.png"); err != nil {
+		log.Fatal(err)
+	}
+
+}
+
+/**
+*	This gives some insight into the tail latencies of Goroutine creation
+ */
+func makeCreationLatencyCDF(data []SchedEvent) {
+	creation := make(map[int64]int64)
+	firstExec := make(map[int64]int64)
+	for i := 0; i < len(data); i++ {
+		ev := data[i]
+		switch ev.ActionID {
+		case GOROUTINE_CREATION:
+			if _, exists := creation[ev.GoRoutineID]; !exists {
+				creation[ev.GoRoutineID] = ev.Timestamp
+			}
+		case GOROUTINE_EXECUTION:
+			if _, exists := firstExec[ev.GoRoutineID]; !exists {
+				firstExec[ev.GoRoutineID] = ev.Timestamp
+			}
+		}
+	}
+
+	// Compute latencies
+	latencies := []float64{}
+	for gid, c := range creation {
+		if s, ok := firstExec[gid]; ok && s > c {
+			// convert ns --> microseconds
+			latency := float64(s-c) / 1000.0
+			latencies = append(latencies, latency)
+		}
+	}
+
+	sort.Float64s(latencies)
+	pts := make(plotter.XYs, len(latencies))
+	n := float64(len(latencies))
+
+	for i, v := range latencies {
+		pts[i].X = v
+		pts[i].Y = float64(i+1) / n // cumulative probability
+	}
+
+	p := plot.New()
+	p.Title.Text = "Goroutine Creation Latency (CDF)"
+	p.X.Label.Text = "Latency (µs)"
+	p.Y.Label.Text = "P(Latency ≤ x)"
+
+	line, err := plotter.NewLine(pts)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	p.Add(line)
+
+	if err := p.Save(8*vg.Inch, 5*vg.Inch, "goroutine_creation_latency_cdf.png"); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func getSummaryData(filePath string) ([]Summary, error) {
 	var data []Summary
 	check := checkFile(filePath)
 	if check != nil {
@@ -213,13 +324,133 @@ func getFileData(filePath string) ([]Summary, error) {
 
 	scanner := bufio.NewScanner(f)
 
-	// 1️⃣ Read file line by line
+	// Read file line by line
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
 			continue
 		}
 		var s Summary
+		if err := json.Unmarshal(line, &s); err != nil {
+			log.Printf("Skipping invalid line: %v", err)
+			continue
+		}
+		data = append(data, s)
+	}
+	if err := scanner.Err(); err != nil {
+		log.Fatalf("error reading file: %v", err)
+	}
+
+	if len(data) == 0 {
+		log.Fatal("No valid records found in results.jsonl")
+	}
+
+	return data, nil
+}
+
+func getGStatusData(filePath string) ([]ChangeEvent, error) {
+	var data []ChangeEvent
+	check := checkFile(filePath)
+	if check != nil {
+		return nil, fmt.Errorf("the File was invalid type, needs to be: .jsonl")
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		// log.Fatalf("failed to open file %s: %v", filePath, err)
+		return nil, fmt.Errorf("failed to Open file")
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+
+	// Read file line by line
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var s ChangeEvent
+		if err := json.Unmarshal(line, &s); err != nil {
+			log.Printf("Skipping invalid line: %v", err)
+			continue
+		}
+		data = append(data, s)
+	}
+	if err := scanner.Err(); err != nil {
+		log.Fatalf("error reading file: %v", err)
+	}
+
+	if len(data) == 0 {
+		log.Fatal("No valid records found in results.jsonl")
+	}
+
+	return data, nil
+}
+
+func getGQueueData(filePath string) ([]GQueueTimestamp, error) {
+	var data []GQueueTimestamp
+	check := checkFile(filePath)
+	if check != nil {
+		return nil, fmt.Errorf("the File was invalid type, needs to be: .jsonl")
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		// log.Fatalf("failed to open file %s: %v", filePath, err)
+		return nil, fmt.Errorf("failed to Open file")
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+
+	// Read file line by line
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var s GQueueTimestamp
+		if err := json.Unmarshal(line, &s); err != nil {
+			log.Printf("Skipping invalid line: %v", err)
+			continue
+		}
+		data = append(data, s)
+	}
+	if err := scanner.Err(); err != nil {
+		log.Fatalf("error reading file: %v", err)
+	}
+
+	if len(data) == 0 {
+		log.Fatal("No valid records found in results.jsonl")
+	}
+
+	return data, nil
+}
+
+func getInstrumentationData(filePath string) ([]SchedEvent, error) {
+	var data []SchedEvent
+	check := checkFile(filePath)
+	if check != nil {
+		return nil, fmt.Errorf("the File was invalid type, needs to be: .jsonl")
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		// log.Fatalf("failed to open file %s: %v", filePath, err)
+		return nil, fmt.Errorf("failed to Open file")
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+
+	// Read file line by line
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var s SchedEvent
 		if err := json.Unmarshal(line, &s); err != nil {
 			log.Printf("Skipping invalid line: %v", err)
 			continue
