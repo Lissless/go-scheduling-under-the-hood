@@ -9,6 +9,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
@@ -306,6 +307,133 @@ func makeCreationLatencyCDF(data []SchedEvent) {
 	if err := p.Save(8*vg.Inch, 5*vg.Inch, "goroutine_creation_latency_cdf.png"); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func makeSchedulingLatencyCDF(data []ChangeEvent) {
+	lastReady := make(map[int64]int64)
+	firstExec := make(map[int64]int64)
+	for i := 0; i < len(data); i++ {
+		ev := data[i]
+		switch gstatus(ev.NewStatus) {
+		case GRUNNABLE:
+			lastReady[ev.GoRoutineID] = ev.Timestamp
+		case GRUNNING:
+			if _, exists := firstExec[ev.GoRoutineID]; !exists {
+				firstExec[ev.GoRoutineID] = ev.Timestamp
+			}
+		}
+	}
+
+	// Compute latencies (µs)
+	latencies := []float64{}
+	for gid, r := range lastReady {
+		if e, ok := firstExec[gid]; ok && e > r {
+			latency := float64(e-r) / 1000.0 // ns → µs
+			latencies = append(latencies, latency)
+		}
+	}
+
+	sort.Float64s(latencies)
+
+	pts := make(plotter.XYs, len(latencies))
+	n := float64(len(latencies))
+
+	for i, v := range latencies {
+		pts[i].X = v
+		pts[i].Y = float64(i+1) / n
+	}
+
+	p := plot.New()
+	p.Title.Text = "Scheduling Latency (CDF)"
+	p.X.Label.Text = "Latency (µs)"
+	p.Y.Label.Text = "P(latency ≤ x)"
+
+	line, err := plotter.NewLine(pts)
+	if err != nil {
+		log.Fatal(err)
+	}
+	p.Add(line)
+
+	if err := p.Save(8*vg.Inch, 5*vg.Inch, "goroutine_schduling_latency_cdf.png"); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func makeSchedulingLatencyHistogram(data []ChangeEvent) {
+	lastReady := make(map[int64]int64)
+	firstExec := make(map[int64]int64)
+	for i := 0; i < len(data); i++ {
+		ev := data[i]
+		switch gstatus(ev.NewStatus) {
+		case GRUNNABLE:
+			lastReady[ev.GoRoutineID] = ev.Timestamp
+		case GRUNNING:
+			if _, exists := firstExec[ev.GoRoutineID]; !exists {
+				firstExec[ev.GoRoutineID] = ev.Timestamp
+			}
+		}
+	}
+
+	// Compute latencies (µs)
+	latencies := []float64{}
+	for gid, r := range lastReady {
+		if e, ok := firstExec[gid]; ok && e > r {
+			latency := float64(e-r) / 1000.0 // ns → µs
+			latencies = append(latencies, latency)
+		}
+	}
+
+	p := plot.New()
+	p.Title.Text = "Scheduling Latency (PDF)"
+	p.X.Label.Text = "Latency (µs)"
+	p.Y.Label.Text = "Frequency"
+
+	vals := make(plotter.Values, len(latencies))
+	for i, v := range latencies {
+		vals[i] = v
+	}
+
+	hist, err := plotter.NewHist(vals, 50)
+	if err != nil {
+		log.Fatal(err)
+	}
+	hist.Normalize(1)
+
+	p.Add(hist)
+
+	if err := p.Save(8*vg.Inch, 5*vg.Inch, "goroutine_schduling_latency_hist.png"); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func makeGoroutinesCreated(data []SchedEvent) {
+	pts := make(plotter.XYs, len(data))
+	count := 0
+	startTime := data[0].Timestamp
+	for i, e := range data {
+		if e.ActionID == GOROUTINE_CREATION {
+			count++
+		}
+
+		pts[i].X = float64(time.Duration(e.Timestamp - startTime).Seconds())
+		pts[i].Y = float64(count)
+	}
+
+	p := plot.New()
+	p.Title.Text = "Total Goroutines Created Over Time"
+	p.X.Label.Text = "Time (sec)"
+	p.Y.Label.Text = "Goroutines Created"
+
+	line, err := plotter.NewLine(pts)
+	if err != nil {
+		log.Fatal(err)
+	}
+	p.Add(line)
+
+	if err := p.Save(10*vg.Inch, 4*vg.Inch, "goroutines_created.png"); err != nil {
+		log.Fatal(err)
+	}
+
 }
 
 func getSummaryData(filePath string) ([]Summary, error) {

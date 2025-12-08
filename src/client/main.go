@@ -593,13 +593,52 @@ func main() {
 				}
 				log.Println("Finished Processing test, Results in load_test_eg4.jsonl")
 			}
+		case "-lt5":
+			var config LoadConfig
+			if len(os.Args) == 3 {
+				log.Println("Processing Load Test, please wait 1 minute!")
+				// TODO: Fine a way that is somewhat near runtime.nanotime so we an filter out interference
+				// 			in loggin gbefore deploying the workoad
+				start := time.Now() // for linux this may be monotonic?
+				print("Start Time: ", time.Since(start).Nanoseconds(), "\n")
+				config = LoadConfig{os.Args[2], 20, time.Duration(10) * time.Second, 1, 0, 0, "load_test_eg5.jsonl"}
+				report(loadTest(config), config)
+				print("End Time: ", time.Since(start).Nanoseconds(), "\n")
+				log.Println("Finished Processing test, Results in load_test_eg1.jsonl")
+			}
 		case "-g":
 			if len(os.Args) == 3 {
-				data, err := getFileData(os.Args[2])
+				data, err := getSummaryData(os.Args[2])
 				if err != nil {
 					log.Fatalf("failed reading the input file")
 				}
 				makeGraphs(data)
+				if err != nil {
+					log.Fatalf("failed making graphs")
+				}
+			}
+		case "-inst":
+			if len(os.Args) == 3 {
+				data, err := getInstrumentationData(os.Args[2])
+				if err != nil {
+					log.Fatalf("failed reading the input file")
+				}
+				makeCreationLatencyHistogram(data)
+				makeCreationLatencyCDF(data)
+				makeGoroutinesCreated(data)
+				if err != nil {
+					log.Fatalf("failed making graphs")
+				}
+			}
+		case "-gstat":
+			if len(os.Args) == 3 {
+				datags, err := getGStatusData(os.Args[2])
+				if err != nil {
+					log.Fatalf("failed reading the input file")
+				}
+
+				makeSchedulingLatencyCDF(datags)
+				makeSchedulingLatencyHistogram(datags)
 				if err != nil {
 					log.Fatalf("failed making graphs")
 				}
