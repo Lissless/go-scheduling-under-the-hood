@@ -2,3 +2,4 @@ data
 .vscode
 utils/go-instrumented/*
 go-instrumented/*
+*.png
