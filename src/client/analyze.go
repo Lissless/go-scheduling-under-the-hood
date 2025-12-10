@@ -202,11 +202,14 @@ func makeP50LoadLatency(grouped map[string][]Summary, colors []color.Color) {
 This shows the distribution/ skew of goroutine statup overhead, the diffences
 between being set ot created and set to executed
 */
-func makeCreationLatencyHistogram(data []SchedEvent) {
+func makeCreationLatencyHistogram(data []SchedEvent, timeframes []Timeframe) {
 	creation := make(map[int64]int64)
 	firstExec := make(map[int64]int64)
 	for i := 0; i < len(data); i++ {
 		ev := data[i]
+		if !withinTimeframe(ev.Timestamp, timeframes) {
+			continue
+		}
 		switch ev.ActionID {
 		case GOROUTINE_CREATION:
 			if _, exists := creation[ev.GoRoutineID]; !exists {
@@ -217,6 +220,7 @@ func makeCreationLatencyHistogram(data []SchedEvent) {
 				firstExec[ev.GoRoutineID] = ev.Timestamp
 			}
 		}
+
 	}
 
 	// Compute latencies
@@ -256,11 +260,14 @@ func makeCreationLatencyHistogram(data []SchedEvent) {
 /**
 *	This gives some insight into the tail latencies of Goroutine creation
  */
-func makeCreationLatencyCDF(data []SchedEvent) {
+func makeCreationLatencyCDF(data []SchedEvent, timeframes []Timeframe) {
 	creation := make(map[int64]int64)
 	firstExec := make(map[int64]int64)
 	for i := 0; i < len(data); i++ {
 		ev := data[i]
+		if !withinTimeframe(ev.Timestamp, timeframes) {
+			continue
+		}
 		switch ev.ActionID {
 		case GOROUTINE_CREATION:
 			if _, exists := creation[ev.GoRoutineID]; !exists {
@@ -271,6 +278,7 @@ func makeCreationLatencyCDF(data []SchedEvent) {
 				firstExec[ev.GoRoutineID] = ev.Timestamp
 			}
 		}
+
 	}
 
 	// Compute latencies
@@ -309,44 +317,57 @@ func makeCreationLatencyCDF(data []SchedEvent) {
 	}
 }
 
-func makeSchedulingLatencyCDF(data []ChangeEvent) {
-	lastReady := make(map[int64]int64)
-	firstExec := make(map[int64]int64)
-	for i := 0; i < len(data); i++ {
-		ev := data[i]
+func makeSchedulingLatencyCDF(data []ChangeEvent, timeframes []Timeframe) {
+	states := make(map[int64]*GState)
+
+	// All collected latencies
+	var latencies []float64
+
+	for _, ev := range data {
+		if !withinTimeframe(ev.Timestamp, timeframes) {
+			continue
+		}
+
+		gid := ev.GoRoutineID
+		st, exists := states[gid]
+		if !exists {
+			st = &GState{}
+			states[gid] = st
+		}
+
 		switch gstatus(ev.NewStatus) {
+
 		case GRUNNABLE:
-			lastReady[ev.GoRoutineID] = ev.Timestamp
+			// record a new READY; discard any stale READY/RUNNING
+			st.lastReady = ev.Timestamp
+			st.hasReady = true
+
 		case GRUNNING:
-			if _, exists := firstExec[ev.GoRoutineID]; !exists {
-				firstExec[ev.GoRoutineID] = ev.Timestamp
+			// only record latency if we have a READY
+			if st.hasReady && ev.Timestamp > st.lastReady {
+				latency := float64(ev.Timestamp-st.lastReady) / 1000.0
+				latencies = append(latencies, latency)
 			}
+
+			// after RUNNING, reset state
+			st.hasReady = false
 		}
 	}
 
-	// Compute latencies (µs)
-	latencies := []float64{}
-	for gid, r := range lastReady {
-		if e, ok := firstExec[gid]; ok && e > r {
-			latency := float64(e-r) / 1000.0 // ns → µs
-			latencies = append(latencies, latency)
-		}
-	}
-
+	// Sort the samples (required for a CDF)
 	sort.Float64s(latencies)
 
 	pts := make(plotter.XYs, len(latencies))
 	n := float64(len(latencies))
-
 	for i, v := range latencies {
-		pts[i].X = v
-		pts[i].Y = float64(i+1) / n
+		pts[i].X = v                // latency in µs
+		pts[i].Y = float64(i+1) / n // cumulative probability
 	}
 
 	p := plot.New()
-	p.Title.Text = "Scheduling Latency (CDF)"
+	p.Title.Text = "Scheduling Latency CDF"
 	p.X.Label.Text = "Latency (µs)"
-	p.Y.Label.Text = "P(latency ≤ x)"
+	p.Y.Label.Text = "Cumulative Probability"
 
 	line, err := plotter.NewLine(pts)
 	if err != nil {
@@ -354,35 +375,54 @@ func makeSchedulingLatencyCDF(data []ChangeEvent) {
 	}
 	p.Add(line)
 
+	// nicer Y-axis (0 to 1)
+	p.Y.Min = 0
+	p.Y.Max = 1
+
 	if err := p.Save(8*vg.Inch, 5*vg.Inch, "goroutine_schduling_latency_cdf.png"); err != nil {
 		log.Fatal(err)
 	}
+
 }
 
-func makeSchedulingLatencyHistogram(data []ChangeEvent) {
-	lastReady := make(map[int64]int64)
-	firstExec := make(map[int64]int64)
-	for i := 0; i < len(data); i++ {
-		ev := data[i]
+func makeSchedulingLatencyHistogram(data []ChangeEvent, timeframes []Timeframe) {
+	states := make(map[int64]*GState)
+
+	// All collected latencies
+	var latencies []float64
+
+	for _, ev := range data {
+		if !withinTimeframe(ev.Timestamp, timeframes) {
+			continue
+		}
+
+		gid := ev.GoRoutineID
+		st, exists := states[gid]
+		if !exists {
+			st = &GState{}
+			states[gid] = st
+		}
+
 		switch gstatus(ev.NewStatus) {
+
 		case GRUNNABLE:
-			lastReady[ev.GoRoutineID] = ev.Timestamp
+			// record a new READY; discard any stale READY/RUNNING
+			st.lastReady = ev.Timestamp
+			st.hasReady = true
+
 		case GRUNNING:
-			if _, exists := firstExec[ev.GoRoutineID]; !exists {
-				firstExec[ev.GoRoutineID] = ev.Timestamp
+			// only record latency if we have a READY
+			if st.hasReady && ev.Timestamp > st.lastReady {
+				latency := float64(ev.Timestamp-st.lastReady) / 1000.0
+				latencies = append(latencies, latency)
 			}
+
+			// after RUNNING, reset state
+			st.hasReady = false
 		}
 	}
 
-	// Compute latencies (µs)
-	latencies := []float64{}
-	for gid, r := range lastReady {
-		if e, ok := firstExec[gid]; ok && e > r {
-			latency := float64(e-r) / 1000.0 // ns → µs
-			latencies = append(latencies, latency)
-		}
-	}
-
+	// Now produce histogram
 	p := plot.New()
 	p.Title.Text = "Scheduling Latency (PDF)"
 	p.X.Label.Text = "Latency (µs)"
@@ -401,22 +441,29 @@ func makeSchedulingLatencyHistogram(data []ChangeEvent) {
 
 	p.Add(hist)
 
-	if err := p.Save(8*vg.Inch, 5*vg.Inch, "goroutine_schduling_latency_hist.png"); err != nil {
+	if err := p.Save(8*vg.Inch, 5*vg.Inch, "goroutine_scheduling_latency_hist.png"); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func makeGoroutinesCreated(data []SchedEvent) {
-	pts := make(plotter.XYs, len(data))
+func makeGoroutinesCreated(data []SchedEvent, timeframes []Timeframe) {
+
+	var pts plotter.XYs // start empty
+
 	count := 0
-	startTime := data[0].Timestamp
-	for i, e := range data {
-		if e.ActionID == GOROUTINE_CREATION {
-			count++
+	startTime := timeframes[0].Start
+
+	for _, e := range data {
+		if !withinTimeframe(e.Timestamp, timeframes) {
+			continue
 		}
 
-		pts[i].X = float64(time.Duration(e.Timestamp - startTime).Seconds())
-		pts[i].Y = float64(count)
+		if e.ActionID == GOROUTINE_CREATION {
+			count++
+			x := float64(time.Duration(e.Timestamp - startTime).Seconds())
+			y := float64(count)
+			pts = append(pts, plotter.XY{X: x, Y: y})
+		}
 	}
 
 	p := plot.New()
@@ -433,7 +480,6 @@ func makeGoroutinesCreated(data []SchedEvent) {
 	if err := p.Save(10*vg.Inch, 4*vg.Inch, "goroutines_created.png"); err != nil {
 		log.Fatal(err)
 	}
-
 }
 
 func getSummaryData(filePath string) ([]Summary, error) {
@@ -594,6 +640,69 @@ func getInstrumentationData(filePath string) ([]SchedEvent, error) {
 	}
 
 	return data, nil
+}
+
+func getTimeframeData(filePath string) ([]Timeframe, error) {
+	var data []Timeframe
+	check := checkFile(filePath)
+	if check != nil {
+		return nil, fmt.Errorf("the File was invalid type, needs to be: .jsonl")
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		// log.Fatalf("failed to open file %s: %v", filePath, err)
+		return nil, fmt.Errorf("failed to Open file")
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+
+	// Read file line by line
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var s Timeframe
+		if err := json.Unmarshal(line, &s); err != nil {
+			log.Printf("Skipping invalid line: %v", err)
+			continue
+		}
+		data = append(data, s)
+	}
+	if err := scanner.Err(); err != nil {
+		log.Fatalf("error reading file: %v", err)
+	}
+
+	if len(data) == 0 {
+		log.Fatal("No valid records found in results.jsonl")
+	}
+
+	return data, nil
+}
+
+func logTimeframe(tf Timeframe) {
+	f, err := os.OpenFile("../json_results/timeframe.jsonl", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644) // 0644 gives read and write permisisons
+	if err != nil {
+		log.Println("Unable to open file to write summary record")
+		log.Fatal(err)
+	}
+	err = json.NewEncoder(f).Encode(tf)
+	if err != nil {
+		log.Println("Summary contained NaN due to low performance, cannot write this record")
+	}
+	f.Close()
+}
+
+// Is timestamp within any timeframe?
+func withinTimeframe(ts int64, timeframes []Timeframe) bool {
+	for _, tf := range timeframes {
+		if ts >= tf.Start && ts <= tf.End {
+			return true
+		}
+	}
+	return false
 }
 
 func makeGraphs(data []Summary) {

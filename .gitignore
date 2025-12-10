@@ -1,5 +1,17 @@
+# Ignore all
+*
+
+# Unignore all with extensions
+!*.*
+
+# Unignore all dirs
+!*/
+
 data
 .vscode
 utils/go-instrumented/*
+utils-preempt
 go-instrumented/*
 *.png
+!src/client/Cooperative-graphs/*
+!src/client/Preemptive-graphs/*

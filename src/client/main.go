@@ -10,6 +10,7 @@ import (
 	"net/rpc"
 	"net/rpc/jsonrpc"
 	"os"
+	"runtime/instrumentation_export"
 	"sort"
 	"strconv"
 	"sync"
@@ -594,17 +595,22 @@ func main() {
 				log.Println("Finished Processing test, Results in load_test_eg4.jsonl")
 			}
 		case "-lt5":
+			// Run a mixed operation test that is suitable for instrumentation readings
 			var config LoadConfig
 			if len(os.Args) == 3 {
 				log.Println("Processing Load Test, please wait 1 minute!")
-				// TODO: Fine a way that is somewhat near runtime.nanotime so we an filter out interference
-				// 			in loggin gbefore deploying the workoad
-				start := time.Now() // for linux this may be monotonic?
-				print("Start Time: ", time.Since(start).Nanoseconds(), "\n")
-				config = LoadConfig{os.Args[2], 20, time.Duration(10) * time.Second, 1, 0, 0, "load_test_eg5.jsonl"}
-				report(loadTest(config), config)
-				print("End Time: ", time.Since(start).Nanoseconds(), "\n")
+				config = LoadConfig{os.Args[2], 20, time.Duration(10) * time.Second, 1, 0, 0, ""}
+				start := instrumentation_export.NanotimeNow()
+				loadTest(config)
+				end := instrumentation_export.NanotimeNow()
 				log.Println("Finished Processing test, Results in load_test_eg1.jsonl")
+
+				tf := Timeframe{
+					Start: start,
+					End:   end,
+				}
+
+				logTimeframe(tf)
 			}
 		case "-g":
 			if len(os.Args) == 3 {
@@ -618,27 +624,43 @@ func main() {
 				}
 			}
 		case "-inst":
+			// create graphs relating to general instrumentation info
 			if len(os.Args) == 3 {
 				data, err := getInstrumentationData(os.Args[2])
 				if err != nil {
 					log.Fatalf("failed reading the input file")
 				}
-				makeCreationLatencyHistogram(data)
-				makeCreationLatencyCDF(data)
-				makeGoroutinesCreated(data)
+				tfdata, err := getTimeframeData("../json_results/timeframe.jsonl")
+				if err != nil {
+					log.Fatalf("failed reading the input timeframe file")
+				}
+				makeCreationLatencyHistogram(data, tfdata)
+				makeCreationLatencyCDF(data, tfdata)
+				makeGoroutinesCreated(data, tfdata)
 				if err != nil {
 					log.Fatalf("failed making graphs")
 				}
 			}
+		case "-dinst":
+			// dump instrumentation logs to a input file
+			data, err := getInstrumentationData(os.Args[2])
+			if err != nil {
+				log.Fatalf("failed reading the input file")
+			}
+			Dump_instrumentation_logs(data)
 		case "-gstat":
+			// create graphs relating to goroutine status info
 			if len(os.Args) == 3 {
 				datags, err := getGStatusData(os.Args[2])
 				if err != nil {
 					log.Fatalf("failed reading the input file")
 				}
-
-				makeSchedulingLatencyCDF(datags)
-				makeSchedulingLatencyHistogram(datags)
+				tfdata, err := getTimeframeData("../json_results/timeframe.jsonl")
+				if err != nil {
+					log.Fatalf("failed reading the input timeframe file")
+				}
+				makeSchedulingLatencyCDF(datags, tfdata)
+				makeSchedulingLatencyHistogram(datags, tfdata)
 				if err != nil {
 					log.Fatalf("failed making graphs")
 				}
@@ -656,7 +678,5 @@ func main() {
 			}
 
 		}
-		// runtime.DumpCreationLogs()
-		// runtime.DumpTimingLogs()
 	}
 }

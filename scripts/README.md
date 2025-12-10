@@ -1,3 +1,3 @@
 # Helper Scripts
 
-To call the local go instance: ./utils/go-instrumented/bin/go
+These scripts are to help quicken the test running process

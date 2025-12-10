@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"log"
+	"os"
 	"time"
 )
 
@@ -162,6 +165,11 @@ type Summary struct {
 	Errors     int     `json:"errors"`
 }
 
+type Timeframe struct {
+	Start int64
+	End   int64
+}
+
 /*
 
 	Copy of important structs and constants from runtime/instrumentation_metrics.go
@@ -171,7 +179,76 @@ type Summary struct {
 const WAIT_REASON_NOOP = 66
 const STATUS_NOOP = 66
 
-// type ActionCode int
+const (
+	waitReasonZero                  uint8 = iota // ""
+	waitReasonGCAssistMarking                    // "GC assist marking"
+	waitReasonIOWait                             // "IO wait"
+	waitReasonChanReceiveNilChan                 // "chan receive (nil chan)"
+	waitReasonChanSendNilChan                    // "chan send (nil chan)"
+	waitReasonDumpingHeap                        // "dumping heap"
+	waitReasonGarbageCollection                  // "garbage collection"
+	waitReasonGarbageCollectionScan              // "garbage collection scan"
+	waitReasonPanicWait                          // "panicwait"
+	waitReasonSelect                             // "select"
+	waitReasonSelectNoCases                      // "select (no cases)"
+	waitReasonGCAssistWait                       // "GC assist wait"
+	waitReasonGCSweepWait                        // "GC sweep wait"
+	waitReasonGCScavengeWait                     // "GC scavenge wait"
+	waitReasonChanReceive                        // "chan receive"
+	waitReasonChanSend                           // "chan send"
+	waitReasonFinalizerWait                      // "finalizer wait"
+	waitReasonForceGCIdle                        // "force gc (idle)"
+	waitReasonSemacquire                         // "semacquire"
+	waitReasonSleep                              // "sleep"
+	waitReasonSyncCondWait                       // "sync.Cond.Wait"
+	waitReasonSyncMutexLock                      // "sync.Mutex.Lock"
+	waitReasonSyncRWMutexRLock                   // "sync.RWMutex.RLock"
+	waitReasonSyncRWMutexLock                    // "sync.RWMutex.Lock"
+	waitReasonTraceReaderBlocked                 // "trace reader (blocked)"
+	waitReasonWaitForGCCycle                     // "wait for GC cycle"
+	waitReasonGCWorkerIdle                       // "GC worker (idle)"
+	waitReasonGCWorkerActive                     // "GC worker (active)"
+	waitReasonPreempted                          // "preempted"
+	waitReasonDebugCall                          // "debug call"
+	waitReasonGCMarkTermination                  // "GC mark termination"
+	waitReasonStoppingTheWorld                   // "stopping the world"
+	waitReasonSyscall                            // "Goroutine about to enter a Syscall"
+)
+
+var waitReasonStrings = [...]string{
+	waitReasonZero:                  "",
+	waitReasonGCAssistMarking:       "GC assist marking",
+	waitReasonIOWait:                "IO wait",
+	waitReasonChanReceiveNilChan:    "chan receive (nil chan)",
+	waitReasonChanSendNilChan:       "chan send (nil chan)",
+	waitReasonDumpingHeap:           "dumping heap",
+	waitReasonGarbageCollection:     "garbage collection",
+	waitReasonGarbageCollectionScan: "garbage collection scan",
+	waitReasonPanicWait:             "panicwait",
+	waitReasonSelect:                "select",
+	waitReasonSelectNoCases:         "select (no cases)",
+	waitReasonGCAssistWait:          "GC assist wait",
+	waitReasonGCSweepWait:           "GC sweep wait",
+	waitReasonGCScavengeWait:        "GC scavenge wait",
+	waitReasonChanReceive:           "chan receive",
+	waitReasonChanSend:              "chan send",
+	waitReasonFinalizerWait:         "finalizer wait",
+	waitReasonForceGCIdle:           "force gc (idle)",
+	waitReasonSemacquire:            "semacquire",
+	waitReasonSleep:                 "sleep",
+	waitReasonSyncCondWait:          "sync.Cond.Wait",
+	waitReasonSyncMutexLock:         "sync.Mutex.Lock",
+	waitReasonSyncRWMutexRLock:      "sync.RWMutex.RLock",
+	waitReasonSyncRWMutexLock:       "sync.RWMutex.Lock",
+	waitReasonTraceReaderBlocked:    "trace reader (blocked)",
+	waitReasonWaitForGCCycle:        "wait for GC cycle",
+	waitReasonGCWorkerIdle:          "GC worker (idle)",
+	waitReasonGCWorkerActive:        "GC worker (active)",
+	waitReasonPreempted:             "preempted",
+	waitReasonDebugCall:             "debug call",
+	waitReasonGCMarkTermination:     "GC mark termination",
+	waitReasonStoppingTheWorld:      "stopping the world",
+}
 
 const (
 	GOROUTINE_CREATION int = iota
@@ -233,6 +310,17 @@ var GoroutineStatusStrings = map[gstatus]string{
 	GSCAN:            "_Gscan: GC Scanning the stack",
 }
 
+var gStatusStrings = [...]string{
+	GIDLE:      "idle",
+	GRUNNABLE:  "runnable",
+	GRUNNING:   "running",
+	GSYSCALL:   "syscall",
+	GWAITING:   "waiting",
+	GDEAD:      "dead",
+	GCOPYSTACK: "copystack",
+	GPREEMPTED: "preempted",
+}
+
 type SchedEvent struct {
 	Timestamp   int64 // timestamp (nanoseconds)
 	ActionID    int
@@ -254,4 +342,82 @@ type GQueueTimestamp struct {
 	Timestamp   int64 // timestamp (nanoseconds)
 	ProcessorID int32 // processor ID, ID: -1 is the scheduler so we can measure the global queue
 	QSize       int32 // number of gorountines the runq holds at this time
+}
+
+type GState struct {
+	lastReady int64 // timestamp of last READY event
+	hasReady  bool  // did we see a READY that is awaiting a RUNNING?
+}
+
+/*
+
+	Dump Functions for quick visual debugging on console
+
+*/
+
+func Dump_instrumentation_logs(data []SchedEvent) {
+	f, err := os.Create("Dumps/instrument_dump.txt")
+	if err != nil {
+		log.Fatal(err)
+	}
+	// remember to close the file
+	defer f.Close()
+
+	print("=== Goroutine Status Log Dump ===\n")
+	f.WriteString("=== Goroutine Status Log Dump ===\n")
+	for _, e := range data {
+		// e := GoEvents[i]
+		start := fmt.Sprintf("Time: %d - Goroutine %d action: %s", e.Timestamp, e.GoRoutineID, ActionIDStrings[e.ActionID])
+		// print("Time: ", e.Timestamp, " - Goroutine ", e.GoRoutineID, " action: ", ActionIDStrings[e.ActionID])
+		print(start)
+		f.WriteString(start)
+		if e.ActionID == PROCESSOR_WORK_STEAL {
+			// print(", Stolen from Processor P", e.ProcessorID)
+			stolen_p := fmt.Sprintf(", Stolen from Processor P%d", e.ProcessorID)
+			print(stolen_p)
+			f.WriteString(stolen_p)
+		}
+		if !(e.ActionID == GOROUTINE_EXECUTION) && !(e.ActionID == GOROUTINE_READY) && !(e.ActionID == PROCESSOR_WORK_STEAL) && !(e.ActionID == GLOBAL_QUEUE_PUSH) && !(e.ActionID == GOROUTINE_CHANGE_STATUS) {
+			// print(", ran on P", e.ProcessorID)
+			p := fmt.Sprintf(", ran on P%d", e.ProcessorID)
+			print(p)
+			f.WriteString(p)
+		}
+		print("\n")
+		f.WriteString("\n")
+	}
+	ending := fmt.Sprintf("Total # events: %d\n=== Goroutine Status Log Dump ===\n", len(data))
+	print("Total # events: ", len(data), "\n")
+
+	print("=== End Dump ===\n")
+	f.WriteString(ending)
+}
+
+func Dump_qsize_logs(data []GQueueTimestamp) {
+	print("=== QSize Log Dump ===\n")
+
+	for _, t := range data {
+		print("Timestamp: ", t.Timestamp, " - ProcessorID: ", t.ProcessorID, "\tQueue Size: ", t.QSize, "\n")
+	}
+
+	print("Total # events: ", len(data), "\n")
+	print("=== End Dump ===\n")
+}
+
+func Dump_change_status_logs(data []ChangeEvent) {
+	print("=== Goroutine Status Log Dump ===\n")
+
+	for _, slog := range data {
+		newStat := gstatus(slog.NewStatus)
+		print("Time: ", slog.Timestamp, " - Goroutine ", slog.GoRoutineID, " action: ", ActionIDStrings[slog.ActionID])
+		print(", From: ", gStatusStrings[gstatus(slog.OldStatus)], " To: ", gStatusStrings[newStat])
+		if newStat == GWAITING {
+			print(", Waiting Reason: ", waitReasonStrings[slog.WaitReason])
+		}
+		print("\n")
+	}
+
+	print("Total # events: ", len(data), "\n")
+	print("=== End Dump ===\n")
+
 }
