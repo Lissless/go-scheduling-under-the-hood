@@ -349,6 +349,12 @@ type GState struct {
 	hasReady  bool  // did we see a READY that is awaiting a RUNNING?
 }
 
+type CycleEvent struct {
+	Timestamp   int64  // timestamp (nanoseconds)
+	GoRoutineID int64  // goroutine ID
+	Cycles      uint64 // number of cycles between the start and end of newproc1() to make this goroutine
+}
+
 /*
 
 	Dump Functions for quick visual debugging on console

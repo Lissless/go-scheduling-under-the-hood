@@ -482,6 +482,111 @@ func makeGoroutinesCreated(data []SchedEvent, timeframes []Timeframe) {
 	}
 }
 
+// shows runtime noise and scheduling spikes
+func makeCycleScatterPlot(data []CycleEvent, timeframes []Timeframe) {
+	// pts := make(plotter.XYs, len(events))
+	var pts plotter.XYs // start empty
+	// counter := 0
+	initialTime := data[0].Timestamp
+	for _, e := range data {
+		if !withinTimeframe(e.Timestamp, timeframes) {
+			continue
+		}
+		x := float64(e.Timestamp-initialTime) / 1e9 // seconds
+		y := float64(e.Cycles)
+		pts = append(pts, plotter.XY{X: x, Y: y})
+	}
+
+	p := plot.New()
+	p.Title.Text = "Cycles per Goroutine Creation Over Time"
+	p.X.Label.Text = "Time (s)"
+	p.Y.Label.Text = "Cycles"
+
+	line, _ := plotter.NewLine(pts) // or NewScatter
+	p.Add(line)
+
+	if err := p.Save(10*vg.Inch, 4*vg.Inch, "creation_cycles_scatter.png"); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func makeCyclesHistogram(data []CycleEvent, timeframes []Timeframe) {
+	// var pts plotter.XYs // start empty
+	vals := plotter.Values{}
+	var maxCycles float64
+	maxCycles = 0
+	for _, e := range data {
+		if !withinTimeframe(e.Timestamp, timeframes) {
+			continue
+		}
+		if float64(e.Cycles) > maxCycles {
+			maxCycles = float64(e.Cycles)
+		}
+		vals = append(vals, float64(e.Cycles))
+	}
+
+	binWidth := 2500.0
+	numBins := int(maxCycles/binWidth) + 1
+
+	p := plot.New()
+	p.Title.Text = "Histogram of Cycles per Goroutine Creation"
+	p.X.Label.Text = "Cycles"
+	p.Y.Label.Text = "Count"
+
+	h, _ := plotter.NewHist(vals, numBins)
+	p.Add(h)
+
+	if err := p.Save(10*vg.Inch, 4*vg.Inch, "creation_cycles_hist.png"); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func makeCyclesCDF(data []CycleEvent, timeframes []Timeframe) {
+	// Filter data first
+	filtered := make([]CycleEvent, 0, len(data))
+	for _, e := range data {
+		if withinTimeframe(e.Timestamp, timeframes) {
+			filtered = append(filtered, e)
+		}
+	}
+
+	// Sort by Cycles
+	sort.Slice(filtered, func(i, j int) bool {
+		return filtered[i].Cycles < filtered[j].Cycles
+	})
+
+	n := len(filtered)
+	if n == 0 {
+		log.Println("No CycleEvent entries in timeframe!")
+		return
+	}
+
+	// Build CDF points
+	pts := make(plotter.XYs, n)
+	for i, e := range filtered {
+		percentile := float64(i+1) / float64(n)
+		pts[i].X = float64(e.Cycles) // sorted cycles
+		pts[i].Y = percentile        // cumulative probability
+	}
+
+	// Plot
+	p := plot.New()
+	p.Title.Text = "CDF: Cycles per Goroutine Creation"
+	p.X.Label.Text = "Cycles"
+	p.Y.Label.Text = "Percentile"
+
+	l, err := plotter.NewLine(pts)
+	if err != nil {
+		log.Fatal(err)
+	}
+	p.Add(l)
+
+	// Save
+	if err := p.Save(10*vg.Inch, 4*vg.Inch, "creation_cycles_cdf.png"); err != nil {
+		log.Fatal(err)
+	}
+}
+
 func getSummaryData(filePath string) ([]Summary, error) {
 	var data []Summary
 	check := checkFile(filePath)
@@ -642,6 +747,46 @@ func getInstrumentationData(filePath string) ([]SchedEvent, error) {
 	return data, nil
 }
 
+func getCyclesData(filePath string) ([]CycleEvent, error) {
+	var data []CycleEvent
+	check := checkFile(filePath)
+	if check != nil {
+		return nil, fmt.Errorf("the File was invalid type, needs to be: .jsonl")
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		// log.Fatalf("failed to open file %s: %v", filePath, err)
+		return nil, fmt.Errorf("failed to Open file")
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+
+	// Read file line by line
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var c CycleEvent
+		if err := json.Unmarshal(line, &c); err != nil {
+			log.Printf("Skipping invalid line: %v", err)
+			continue
+		}
+		data = append(data, c)
+	}
+	if err := scanner.Err(); err != nil {
+		log.Fatalf("error reading file: %v", err)
+	}
+
+	if len(data) == 0 {
+		log.Fatal("No valid records found in results.jsonl")
+	}
+
+	return data, nil
+}
+
 func getTimeframeData(filePath string) ([]Timeframe, error) {
 	var data []Timeframe
 	check := checkFile(filePath)
@@ -683,7 +828,7 @@ func getTimeframeData(filePath string) ([]Timeframe, error) {
 }
 
 func logTimeframe(tf Timeframe) {
-	f, err := os.OpenFile("../json_results/timeframe.jsonl", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644) // 0644 gives read and write permisisons
+	f, err := os.OpenFile("../json_results/timeframe.jsonl", os.O_CREATE|os.O_WRONLY, 0644) // 0644 gives read and write permisisons
 	if err != nil {
 		log.Println("Unable to open file to write summary record")
 		log.Fatal(err)

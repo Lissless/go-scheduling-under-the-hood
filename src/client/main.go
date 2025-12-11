@@ -665,6 +665,24 @@ func main() {
 					log.Fatalf("failed making graphs")
 				}
 			}
+		case "-cycle":
+			// create graphs relating to goroutine cycles info
+			if len(os.Args) == 3 {
+				datac, err := getCyclesData(os.Args[2])
+				if err != nil {
+					log.Fatalf("failed reading the input file")
+				}
+				tfdata, err := getTimeframeData("../json_results/timeframe.jsonl")
+				if err != nil {
+					log.Fatalf("failed reading the input timeframe file")
+				}
+				makeCycleScatterPlot(datac, tfdata)
+				makeCyclesHistogram(datac, tfdata)
+				makeCyclesCDF(datac, tfdata)
+				if err != nil {
+					log.Fatalf("failed making graphs")
+				}
+			}
 		case "-pg":
 			if len(os.Args) == 3 {
 				data, err := getSummaryData(os.Args[2])
