@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -136,6 +139,10 @@ type MatMutArgs struct {
 type ZlibArgs struct {
 	Data []byte `json:"data"`
 	Size int    `json:"size"`
+}
+
+type ShutdownArgs struct {
+	Message string
 }
 
 type LoadConfig struct {
@@ -426,4 +433,62 @@ func Dump_change_status_logs(data []ChangeEvent) {
 	print("Total # events: ", len(data), "\n")
 	print("=== End Dump ===\n")
 
+}
+
+// Format large numbers like perf stat (e.g., 120174472 -> 120,174,472)
+func formatCount(n uint64) string {
+	s := strconv.FormatUint(n, 10)
+	var out strings.Builder
+	for i, c := range s {
+		if i != 0 && (len(s)-i)%3 == 0 {
+			out.WriteRune(',')
+		}
+		out.WriteRune(c)
+	}
+	return out.String()
+}
+
+func Dump_perf_stats(filepath string) {
+	print("Perf Stat Style Output:\n")
+	file, err := os.Open(filepath)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	r := csv.NewReader(file)
+	records, err := r.ReadAll()
+	if err != nil {
+		panic(err)
+	}
+
+	for _, row := range records {
+		if len(row) < 7 {
+			continue
+		}
+
+		// Parse fields
+		count, err := strconv.ParseUint(row[0], 10, 64)
+		if err != nil {
+			continue
+		}
+
+		event := row[2]
+		enabledPct := row[4]
+		extra := row[6]
+		extra_percentage := row[5]
+
+		// Print like perf stat
+		fmt.Printf("%14s  %-30s (%s%%)",
+			formatCount(count),
+			event,
+			enabledPct,
+		)
+
+		if extra != "" {
+			fmt.Printf("  # %s%% %s", extra_percentage, extra)
+		}
+
+		fmt.Println()
+	}
 }

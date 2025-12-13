@@ -134,7 +134,7 @@ func sendArraySortLoadTest(cfg LoadConfig, stateSeed int64) error {
 	return call.Error
 }
 
-func sendShutdown(serverAddr string) {
+func sendShutdown(serverAddr string, msg string) {
 	// Connect to the server
 	conn, err := net.Dial("tcp", serverAddr)
 	if err != nil {
@@ -148,7 +148,8 @@ func sendShutdown(serverAddr string) {
 
 	// Get Hash
 	var reply string
-	err = client.Call("Shutdown.Exit", nil, &reply)
+	sargs := ShutdownArgs{msg}
+	err = client.Call("Shutdown.Exit", sargs, &reply)
 	if err != nil {
 		log.Fatal("Hash Compute error: ", err)
 	}
@@ -624,7 +625,7 @@ func main() {
 				start := instrumentation_export.NanotimeNow()
 				loadTest(config)
 				end := instrumentation_export.NanotimeNow()
-				sendShutdown(os.Args[2])
+				sendShutdown(os.Args[2], "Test Type: Small mixed workloads for 10 seconds, 20 rquests per second, seed: 1")
 				log.Println("Finished Processing test, Results in json_results")
 
 				tf := Timeframe{
@@ -704,6 +705,10 @@ func main() {
 				if err != nil {
 					log.Fatalf("failed making graphs")
 				}
+			}
+		case "-pstat":
+			if len(os.Args) == 3 {
+				Dump_perf_stats(os.Args[2])
 			}
 		case "-pg":
 			if len(os.Args) == 3 {

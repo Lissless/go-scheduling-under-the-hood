@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime/instrumentation_export"
 )
 
@@ -155,16 +156,25 @@ func (zc Zlib) ZlibDecompress(args ZlibArgs, reply *[]byte) error {
 
 type Shutdown struct{}
 
-func (s *Shutdown) Exit(args struct{}, reply *string) error {
+type ShutdownArgs struct {
+	Message string
+}
+
+func (s *Shutdown) Exit(args ShutdownArgs, reply *string) error {
 	log.Println("Shutdown requested. Dumping instrumentation logs...")
-	// instrumentation_export.DumpInstrumentationLogs() // <-- YOUR FUNCTION
-	// instrumentation_export.DumpQSizeLogs()
-	// instrumentation_export.DumpGStatusLogs()
-	// instrumentation_export.DumpCyclesLogs()
 	instrumentation_export.DumpCyclesLogsToFile("../json_results/cycles_events.jsonl")
 	instrumentation_export.DumpInstrumentationLogsToFile("../json_results/instrumentation.jsonl")
 	instrumentation_export.DumpGStatusLogsToFile("../json_results/goroutine_status.jsonl")
 	instrumentation_export.DumpQSizeLogsToFile("../json_results/queue_size.jsonl")
+
+	d1 := []byte(fmt.Sprintf("This data is from a scheduler of type: %s\n%s", instrumentation_export.ReturnSchedulerType(), args.Message))
+	path1 := filepath.Join("../json_results", "experiment_info.txt")
+	err := os.WriteFile(path1, d1, 0644)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	*reply = "Server shutting down and logs dumped."
 	go func() {
 		// Give the RPC response a moment to be sent before exiting

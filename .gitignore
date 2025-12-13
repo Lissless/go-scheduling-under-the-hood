@@ -15,3 +15,5 @@ go-instrumented/*
 *.png
 !src/client/Cooperative-graphs/*
 !src/client/Preemptive-graphs/*
+!src/scripts/*
+experiment-results

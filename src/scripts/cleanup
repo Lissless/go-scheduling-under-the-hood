@@ -1,5 +1,5 @@
 #!/bin/bash
 
 # Removes all data and graphs made from that data
-rm ../client/*.png
+rm ./*.png
 rm ../json_results/*

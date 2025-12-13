@@ -4,7 +4,9 @@ set -e
 
 PORT=localhost:1234
 PERF_EVENTS="L1-dcache-loads,L1-dcache-load-misses,LLC-loads,LLC-load-misses"
-PERF_OUT="../json_results/perf_stat.csv"
+PERF_OUT="../json_results/raw_perf_stat.csv"
+TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
+RES_FOLDER="../../experiment-results/experiment_$TIMESTAMP"
 
 echo "[1] Starting server under perf stat..."
 
@@ -26,5 +28,31 @@ echo "[2] Running client workload..."
 # Wait for server to exit
 wait $SERVER_PID || true
 
+grep -v '^#' ../json_results/raw_perf_stat.csv > ../json_results/perf_stat.csv
+rm ../json_results/raw_perf_stat.csv
+
 echo "[4] Perf stats saved to $PERF_OUT"
 echo "[5] Runtime instrumentation saved to json_results/"
+
+echo "[6] Making graphs"
+
+../client/main -inst "../json_results/instrumentation.jsonl"
+../client/main -gstat ../json_results/goroutine_status.jsonl
+../client/main -cycle ../json_results/cycles_events.jsonl
+
+sleep 2
+
+echo "[7] Moving experiment info to: $RES_FOLDER"
+
+# if something happens to the experiement-results folder it does not hurt to have it re-made
+mkdir -p $RES_FOLDER/raw_data
+mkdir -p $RES_FOLDER/graphs
+
+mv ../json_results/* $RES_FOLDER/raw_data
+mv ./*.png $RES_FOLDER/graphs
+mv $RES_FOLDER/raw_data/experiment_info.txt $RES_FOLDER/experiment_info.txt
+
+echo "[8] Successfully saved experiment data in: $RES_FOLDER"
+
+
+
