@@ -7,6 +7,7 @@ import (
 	"net/rpc"
 	"net/rpc/jsonrpc"
 	"os"
+	"runtime/instrumentation_export"
 )
 
 func help() {
@@ -16,6 +17,8 @@ func help() {
 func main() {
 	argsLen := len(os.Args)
 	if argsLen == 2 {
+		log.SetOutput(os.Stdout)
+		log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 		rpc.Register(new(GetHash))
 		rpc.Register(new(ArraySort))
 		rpc.Register(new(MatrixMultiply))
@@ -26,6 +29,7 @@ func main() {
 		if err != nil {
 			log.Fatal("Listen error:", err)
 		}
+		log.Println("Goroutine instrumentation enabled: ", instrumentation_export.ReturnSchedulerType())
 		log.Println("JSON-RPC server listening on: ", os.Args[1])
 
 		// -----------------------------------------------------
