@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# Removes all data and graphs made from that data
+mv ../client/*.png ../client/Preemptive-graphs
+mv ../json_results/* ../client/Preemptive-graphs

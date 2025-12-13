@@ -1,0 +1,30 @@
+#!/bin/bash
+
+set -e
+
+PORT=localhost:1234
+PERF_EVENTS="L1-dcache-loads,L1-dcache-load-misses,LLC-loads,LLC-load-misses"
+PERF_OUT="../json_results/perf_stat.csv"
+
+echo "[1] Starting server under perf stat..."
+
+GOINSTRUMENT=1 perf stat \
+  -e $PERF_EVENTS \
+  -x , \
+  -o $PERF_OUT \
+  ../server/main $PORT &
+
+SERVER_PID=$!
+echo "Server PID: $SERVER_PID"
+
+# Allow server to initialize
+sleep 1
+
+echo "[2] Running client workload..."
+../client/main -lt5 $PORT
+
+# Wait for server to exit
+wait $SERVER_PID || true
+
+echo "[4] Perf stats saved to $PERF_OUT"
+echo "[5] Runtime instrumentation saved to json_results/"

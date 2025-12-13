@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# Removes all data and graphs made from that data
+mv ../client/*.png ../client/Cooperative-graphs
+mv ../json_results/* ../client/Cooperative-graphs
