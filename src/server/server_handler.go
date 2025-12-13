@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
+	"runtime/instrumentation_export"
 )
 
 const helpMessage = `
@@ -148,5 +150,26 @@ func (zc Zlib) ZlibDecompress(args ZlibArgs, reply *[]byte) error {
 	r.Close()
 
 	*reply = out.Bytes()
+	return nil
+}
+
+type Shutdown struct{}
+
+func (s *Shutdown) Exit(args struct{}, reply *string) error {
+	log.Println("Shutdown requested. Dumping instrumentation logs...")
+	// instrumentation_export.DumpInstrumentationLogs() // <-- YOUR FUNCTION
+	// instrumentation_export.DumpQSizeLogs()
+	// instrumentation_export.DumpGStatusLogs()
+	// instrumentation_export.DumpCyclesLogs()
+	instrumentation_export.DumpCyclesLogsToFile("../json_results/cycles_events.jsonl")
+	instrumentation_export.DumpInstrumentationLogsToFile("../json_results/instrumentation.jsonl")
+	instrumentation_export.DumpGStatusLogsToFile("../json_results/goroutine_status.jsonl")
+	instrumentation_export.DumpQSizeLogsToFile("../json_results/queue_size.jsonl")
+	*reply = "Server shutting down and logs dumped."
+	go func() {
+		// Give the RPC response a moment to be sent before exiting
+		// Otherwise client might not receive it
+		os.Exit(0)
+	}()
 	return nil
 }

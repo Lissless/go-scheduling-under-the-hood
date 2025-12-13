@@ -134,6 +134,27 @@ func sendArraySortLoadTest(cfg LoadConfig, stateSeed int64) error {
 	return call.Error
 }
 
+func sendShutdown(serverAddr string) {
+	// Connect to the server
+	conn, err := net.Dial("tcp", serverAddr)
+	if err != nil {
+		log.Fatal("Dialing:", err)
+	}
+	defer conn.Close()
+
+	// Create JSON-RPC client
+	client := jsonrpc.NewClient(conn)
+	defer client.Close()
+
+	// Get Hash
+	var reply string
+	err = client.Call("Shutdown.Exit", nil, &reply)
+	if err != nil {
+		log.Fatal("Hash Compute error: ", err)
+	}
+	log.Printf("Shutdown Response: %s\n", reply)
+}
+
 /*
 
 Main Functions
@@ -603,7 +624,8 @@ func main() {
 				start := instrumentation_export.NanotimeNow()
 				loadTest(config)
 				end := instrumentation_export.NanotimeNow()
-				log.Println("Finished Processing test, Results in load_test_eg1.jsonl")
+				sendShutdown(os.Args[2])
+				log.Println("Finished Processing test, Results in json_results")
 
 				tf := Timeframe{
 					Start: start,
