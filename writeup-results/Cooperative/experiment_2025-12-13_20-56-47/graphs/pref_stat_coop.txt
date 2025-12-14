@@ -1,0 +1,5 @@
+Cooperative Scheduling:
+   133,186,436  L1-dcache-loads                (68.30%)
+     5,334,905  L1-dcache-load-misses          (52.85%)  # 4.01% of all L1-dcache accesses
+     1,344,022  LLC-loads                      (53.84%)
+       145,044  LLC-load-misses                (76.82%)  # 10.79% of all LL-cache accesses

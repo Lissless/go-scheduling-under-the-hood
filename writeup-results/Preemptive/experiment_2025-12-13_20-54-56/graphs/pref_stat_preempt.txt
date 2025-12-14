@@ -1,0 +1,5 @@
+Preemptive scheduling:
+   374,140,137  L1-dcache-loads                (58.80%)
+    45,975,085  L1-dcache-load-misses          (66.24%)  # 12.29% of all L1-dcache accesses
+     1,853,297  LLC-loads                      (49.27%)
+       186,639  LLC-load-misses                (72.69%)  # 10.07% of all LL-cache accesses
