@@ -1,0 +1,2 @@
+This data is from a scheduler of type: Preemptive
+Test Type: String Hashing (CPU Bound) workload for 10 seconds, 20 requests per second, 50% Heavy Mix, seed: 1

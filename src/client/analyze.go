@@ -238,12 +238,22 @@ func makeCreationLatencyHistogram(data []SchedEvent, timeframes []Timeframe) {
 	p.X.Label.Text = "Latency (µs)"
 	p.Y.Label.Text = "Frequency"
 
-	vals := make(plotter.Values, len(latencies))
-	for i, v := range latencies {
-		vals[i] = v
+	// vals := make(plotter.Values, len(latencies))
+	vals := plotter.Values{}
+	var max float64
+	max = 0
+	for _, v := range latencies {
+		// vals[i] = v
+		if v > max {
+			max = v
+		}
+		vals = append(vals, v)
 	}
 
-	hist, err := plotter.NewHist(vals, 50) // 50 bins
+	binWidth := 5.0
+	numBins := int(max/binWidth) + 1
+
+	hist, err := plotter.NewHist(vals, numBins) // 50 bins
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -433,7 +443,7 @@ func makeSchedulingLatencyHistogram(data []ChangeEvent, timeframes []Timeframe) 
 		vals[i] = v
 	}
 
-	hist, err := plotter.NewHist(vals, 50)
+	hist, err := plotter.NewHist(vals, 20)
 	if err != nil {
 		log.Fatal(err)
 	}

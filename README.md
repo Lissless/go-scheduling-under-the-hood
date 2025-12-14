@@ -2,7 +2,7 @@
 
 In a disaggregated architecture, computation and data often reside on different nodes, requiring efficient remote communication. Remote Procedure Calls (RPCs) serve as the foundation of this interaction, making their performance central to system efficiency. 
 
-The Go programming language is widely used in modern datacenter environments for building scalable cloud services. It provides a powerful yet abstracted concurrency model using lightweight goroutines. However, the runtime’s internal behavior can significantly affect RPC latency and throughput. Having a better understanding on how much time is spent on runtime mechanisms vs data processing could lead to developments that can improve the performance of Golang implementations.
+The Go programming language is widely used in modern datacenter environments for building scalable cloud services. It provides a powerful yet abstracted concurrency model using lightweight goroutines. However, the runtime’s internal behavior can significantly affect RPC latency and throughput. Having a better understanding on how the scheduler acts underneath the surface when faced with different kinds of workloads can help datacenters make decisions on what style would be best for them.
 
 
 ## Go-Instrumented & Aspen-Go-Instrumented
@@ -42,3 +42,5 @@ In order to re-make the core golang executable for the language you have to:
     * Example: ./main -gstat ../json_results/goroutine_status.jsonl
     * Example: ./main -cycle ../json_results/cycles_events.jsonl
     * Resulting graphs will be saved in the TODO: make all graphs appear in a certain file
+
+sudo sysctl -w kernel.perf_event_paranoid=1

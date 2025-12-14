@@ -462,6 +462,8 @@ func Dump_perf_stats(filepath string) {
 		panic(err)
 	}
 
+	res := ""
+
 	for _, row := range records {
 		if len(row) < 7 {
 			continue
@@ -479,16 +481,24 @@ func Dump_perf_stats(filepath string) {
 		extra_percentage := row[5]
 
 		// Print like perf stat
-		fmt.Printf("%14s  %-30s (%s%%)",
+		res += fmt.Sprintf("%14s  %-30s (%s%%)",
 			formatCount(count),
 			event,
 			enabledPct,
 		)
 
 		if extra != "" {
-			fmt.Printf("  # %s%% %s", extra_percentage, extra)
+			res += fmt.Sprintf("  # %s%% %s", extra_percentage, extra)
 		}
 
-		fmt.Println()
+		res += "\n"
 	}
+	print(res)
+
+	err = os.WriteFile("./pref_stat.txt", []byte(res), 0644)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
 }

@@ -1,0 +1,2 @@
+This data is from a scheduler of type: Cooperative
+Test Type: Array Sort (Memory Bound) workload for 10 seconds, 20 requests per second, 50% Heavy Mix, seed: 1

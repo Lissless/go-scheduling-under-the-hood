@@ -1,0 +1,5 @@
+
+374140137,,L1-dcache-loads,448072408,58.80,,
+45975085,,L1-dcache-load-misses,503833318,66.24,12.29,of all L1-dcache accesses
+1853297,,LLC-loads,370123544,49.27,,
+186639,,LLC-load-misses,547360861,72.69,10.07,of all LL-cache accesses

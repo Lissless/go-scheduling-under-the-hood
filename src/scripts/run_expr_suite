@@ -1,0 +1,32 @@
+#!/bin/bash
+
+set -e
+
+EXPERIMENT_SCRIPT="./run_experiment.sh"
+
+# List of workloads to test
+WORKLOADS=(
+  "-expr1"
+  "-expr2"
+  "-expr3"
+  "-expr4"
+)
+
+echo "Starting batch experiment run..."
+echo "================================="
+
+for workload in "${WORKLOADS[@]}"; do
+  echo
+  echo "---------------------------------"
+  echo "Running experiment with workload: $workload"
+  echo "---------------------------------"
+
+  ./run_experiment "$workload"
+
+  echo "Completed workload: $workload"
+  echo "Waiting briefly before next run..."
+  sleep 5
+done
+
+echo
+echo "All experiments completed successfully."

@@ -559,6 +559,7 @@ func main() {
 					config = LoadConfig{os.Args[2], 100 * i, time.Duration(1) * time.Second, 1, 4, 0, "load_test_eg1.jsonl"}
 					report(loadTest(config), config)
 				}
+				sendShutdown(os.Args[2], "")
 				log.Println("Finished Processing test, Results in load_test_eg1.jsonl")
 			}
 		case "-lt2":
@@ -578,6 +579,7 @@ func main() {
 					config = LoadConfig{os.Args[2], 300 + (100 * i), time.Duration(1) * time.Second, 1, 4, 0, "load_test_eg2.jsonl"}
 					report(loadTest(config), config)
 				}
+				sendShutdown(os.Args[2], "")
 				log.Println("Finished Processing test, Results in load_test_eg2.jsonl")
 			}
 		case "-lt3":
@@ -596,6 +598,7 @@ func main() {
 					config = LoadConfig{os.Args[2], 300 + (100 * i), time.Duration(1) * time.Second, 1, 4, 50, "load_test_eg3.jsonl"}
 					report(loadTest(config), config)
 				}
+				sendShutdown(os.Args[2], "")
 				log.Println("Finished Processing test, Results in load_test_eg3.jsonl")
 			}
 		case "-lt4":
@@ -614,18 +617,76 @@ func main() {
 					config = LoadConfig{os.Args[2], 300 + (100 * i), time.Duration(1) * time.Second, 1, 4, 100, "load_test_eg4.jsonl"}
 					report(loadTest(config), config)
 				}
+				sendShutdown(os.Args[2], "")
 				log.Println("Finished Processing test, Results in load_test_eg4.jsonl")
 			}
-		case "-lt5":
+		case "-expr1":
 			// Run a mixed operation test that is suitable for instrumentation readings
 			var config LoadConfig
 			if len(os.Args) == 3 {
 				log.Println("Processing Load Test, please wait 1 minute!")
-				config = LoadConfig{os.Args[2], 20, time.Duration(10) * time.Second, 1, 0, 0, ""}
+				config = LoadConfig{os.Args[2], 20, time.Duration(10) * time.Second, 1, 0, 50, ""}
 				start := instrumentation_export.NanotimeNow()
 				loadTest(config)
 				end := instrumentation_export.NanotimeNow()
-				sendShutdown(os.Args[2], "Test Type: Small mixed workloads for 10 seconds, 20 rquests per second, seed: 1")
+				sendShutdown(os.Args[2], "Test Type: Mixed workloads for 10 seconds, 20 requests per second, 50% Heavy Mix, seed: 1")
+				log.Println("Finished Processing test, Results in json_results")
+
+				tf := Timeframe{
+					Start: start,
+					End:   end,
+				}
+
+				logTimeframe(tf)
+			}
+		case "-expr2":
+			// Run a mixed operation test that is suitable for instrumentation readings
+			var config LoadConfig
+			if len(os.Args) == 3 {
+				log.Println("Processing Load Test, please wait 1 minute!")
+				config = LoadConfig{os.Args[2], 20, time.Duration(10) * time.Second, 1, 1, 50, ""}
+				start := instrumentation_export.NanotimeNow()
+				loadTest(config)
+				end := instrumentation_export.NanotimeNow()
+				sendShutdown(os.Args[2], "Test Type: String Hashing (CPU Bound) workload for 10 seconds, 20 requests per second, 50% Heavy Mix, seed: 1")
+				log.Println("Finished Processing test, Results in json_results")
+
+				tf := Timeframe{
+					Start: start,
+					End:   end,
+				}
+
+				logTimeframe(tf)
+			}
+		case "-expr3":
+			// Run a mixed operation test that is suitable for instrumentation readings
+			var config LoadConfig
+			if len(os.Args) == 3 {
+				log.Println("Processing Load Test, please wait 1 minute!")
+				config = LoadConfig{os.Args[2], 20, time.Duration(10) * time.Second, 1, 2, 50, ""}
+				start := instrumentation_export.NanotimeNow()
+				loadTest(config)
+				end := instrumentation_export.NanotimeNow()
+				sendShutdown(os.Args[2], "Test Type: Matrix Multiplication (Compute Bound) workload for 10 seconds, 20 requests per second, 50% Heavy Mix, seed: 1")
+				log.Println("Finished Processing test, Results in json_results")
+
+				tf := Timeframe{
+					Start: start,
+					End:   end,
+				}
+
+				logTimeframe(tf)
+			}
+		case "-expr4":
+			// Run a mixed operation test that is suitable for instrumentation readings
+			var config LoadConfig
+			if len(os.Args) == 3 {
+				log.Println("Processing Load Test, please wait 1 minute!")
+				config = LoadConfig{os.Args[2], 20, time.Duration(10) * time.Second, 1, 4, 50, ""}
+				start := instrumentation_export.NanotimeNow()
+				loadTest(config)
+				end := instrumentation_export.NanotimeNow()
+				sendShutdown(os.Args[2], "Test Type: Array Sort (Memory Bound) workload for 10 seconds, 20 requests per second, 50% Heavy Mix, seed: 1")
 				log.Println("Finished Processing test, Results in json_results")
 
 				tf := Timeframe{
